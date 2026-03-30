@@ -432,235 +432,6 @@
             <p>Demonstração do pipeline de busca semântica + geração com LLM</p>
         </div>
 
-        @php
-            $off = $baseline['pipeline_off'] ?? null;
-            $on = $baseline['pipeline_on'] ?? null;
-            $ref = $referenceBaseline;
-            $fmt = fn ($v, $d = 2) => is_numeric($v) ? number_format((float) $v, $d, ',', '.') : '—';
-            $rowWide = function ($label, $payload) use ($fmt) {
-                if (!$payload || ($payload['queries_total'] ?? 0) === 0) {
-                    return null;
-                }
-                $s = $payload['stages'];
-                return [
-                    'label' => $label,
-                    'emb' => $fmt($s['embedding']['p50_ms']),
-                    'vec' => $fmt($s['vector_search']['p50_ms']),
-                    'llm' => $fmt($s['llm']['p50_ms']),
-                    'tot' => $fmt($payload['total']['p50_ms']),
-                    'ce' => $fmt($s['embedding']['avg_cost_usd'], 6),
-                    'cv' => $fmt($s['vector_search']['avg_cost_usd'], 6),
-                    'cl' => $fmt($s['llm']['avg_cost_usd'], 6),
-                    'ct' => $fmt($payload['total']['avg_cost_usd'], 6),
-                ];
-            };
-            $stageDetail = function ($payload) use ($fmt) {
-                if (!$payload || ($payload['queries_total'] ?? 0) === 0) {
-                    return [];
-                }
-                $s = $payload['stages'];
-                $labels = [
-                    'embedding' => 'Embedding',
-                    'vector_search' => 'Busca vetorial (Qdrant)',
-                    'llm' => 'Geração LLM (gpt-4o)',
-                ];
-                $rows = [];
-                foreach ($labels as $key => $name) {
-                    $rows[] = [
-                        'name' => $name,
-                        'p50' => $fmt($s[$key]['p50_ms']),
-                        'p95' => $fmt($s[$key]['p95_ms']),
-                        'p99' => $fmt($s[$key]['p99_ms']),
-                        'cost' => $fmt($s[$key]['avg_cost_usd'], 6),
-                    ];
-                }
-                return $rows;
-            };
-        @endphp
-
-        <div class="card">
-            <h2 style="margin-bottom: 8px; color: #333;">📊 Métricas de benchmark (baseline)</h2>
-            <p class="benchmark-meta">
-                Preços de referência: embedding {{ number_format($pricingRef['embedding_usd_per_1k_tokens'], 5, ',', '.') }} USD/1k tokens;
-                gpt-4o {{ number_format($pricingRef['gpt4o_input_usd_per_1m'], 2, ',', '.') }}/1M in +
-                {{ number_format($pricingRef['gpt4o_output_usd_per_1m'], 2, ',', '.') }}/1M out.
-            </p>
-
-            @if(!empty($baseline['has_pipeline']))
-                @php
-                    $rOff = $rowWide('Cache OFF (medido)', $off);
-                    $rOn = $rowWide('Cache ON (medido)', $on);
-                @endphp
-                <div class="benchmark-block">
-                    <h2>Tabela comparativa (P50)</h2>
-                    <div class="data-table-wrap">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Cenário</th>
-                                    <th class="num">Embedding (ms)</th>
-                                    <th class="num">Busca vetorial (ms)</th>
-                                    <th class="num">LLM (ms)</th>
-                                    <th class="num">Total (ms)</th>
-                                    <th class="num">$ embedding</th>
-                                    <th class="num">$ busca*</th>
-                                    <th class="num">$ LLM</th>
-                                    <th class="num">$ total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @if($rOff)
-                                    <tr>
-                                        <td>{{ $rOff['label'] }}</td>
-                                        <td class="num">{{ $rOff['emb'] }}</td>
-                                        <td class="num">{{ $rOff['vec'] }}</td>
-                                        <td class="num">{{ $rOff['llm'] }}</td>
-                                        <td class="num">{{ $rOff['tot'] }}</td>
-                                        <td class="num">{{ $rOff['ce'] }}</td>
-                                        <td class="num">{{ $rOff['cv'] }}</td>
-                                        <td class="num">{{ $rOff['cl'] }}</td>
-                                        <td class="num">{{ $rOff['ct'] }}</td>
-                                    </tr>
-                                @endif
-                                @if($rOn)
-                                    <tr>
-                                        <td>{{ $rOn['label'] }}</td>
-                                        <td class="num">{{ $rOn['emb'] }}</td>
-                                        <td class="num">{{ $rOn['vec'] }}</td>
-                                        <td class="num">{{ $rOn['llm'] }}</td>
-                                        <td class="num">{{ $rOn['tot'] }}</td>
-                                        <td class="num">{{ $rOn['ce'] }}</td>
-                                        <td class="num">{{ $rOn['cv'] }}</td>
-                                        <td class="num">{{ $rOn['cl'] }}</td>
-                                        <td class="num">{{ $rOn['ct'] }}</td>
-                                    </tr>
-                                @endif
-                                <tr>
-                                    <td>{{ $ref['label'] }}</td>
-                                    <td class="num">—</td>
-                                    <td class="num">—</td>
-                                    <td class="num">—</td>
-                                    <td class="num"><strong>{{ $ref['typical_latency_ms'] }}</strong></td>
-                                    <td class="num">—</td>
-                                    <td class="num">—</td>
-                                    <td class="num">—</td>
-                                    <td class="num"><strong>{{ $fmt($ref['typical_cost_usd'], 4) }}</strong></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="benchmark-note">* Busca em Qdrant auto-hospedado: custo de API OpenAI ≈ 0 USD; só infraestrutura.</p>
-                </div>
-
-                <div class="benchmark-block">
-                    <h2>Detalhe por etapa — sem cache (percentis)</h2>
-                    <div class="data-table-wrap">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Etapa</th>
-                                    <th class="num">P50 (ms)</th>
-                                    <th class="num">P95 (ms)</th>
-                                    <th class="num">P99 (ms)</th>
-                                    <th class="num">Custo médio/query (USD)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($stageDetail($off) as $row)
-                                    <tr>
-                                        <td>{{ $row['name'] }}</td>
-                                        <td class="num">{{ $row['p50'] }}</td>
-                                        <td class="num">{{ $row['p95'] }}</td>
-                                        <td class="num">{{ $row['p99'] }}</td>
-                                        <td class="num">{{ $row['cost'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="benchmark-block">
-                    <h2>Detalhe por etapa — com cache (percentis)</h2>
-                    <div class="data-table-wrap">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Etapa</th>
-                                    <th class="num">P50 (ms)</th>
-                                    <th class="num">P95 (ms)</th>
-                                    <th class="num">P99 (ms)</th>
-                                    <th class="num">Custo médio/query (USD)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($stageDetail($on) as $row)
-                                    <tr>
-                                        <td>{{ $row['name'] }}</td>
-                                        <td class="num">{{ $row['p50'] }}</td>
-                                        <td class="num">{{ $row['p95'] }}</td>
-                                        <td class="num">{{ $row['p99'] }}</td>
-                                        <td class="num">{{ $row['cost'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                @if(!empty($baseline['cache_comparison']))
-                    @php $cc = $baseline['cache_comparison']; @endphp
-                    <div class="benchmark-block">
-                        <h2>Benchmark só busca (latência agregada)</h2>
-                        <div class="data-table-wrap">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Métrica</th>
-                                        <th class="num">Sem cache (ms)</th>
-                                        <th class="num">Com cache (ms)</th>
-                                        <th class="num">Δ %</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>P50</td>
-                                        <td class="num">{{ $fmt($cc['baseline_no_cache']['latency_p50_ms'] ?? 0) }}</td>
-                                        <td class="num">{{ $fmt($cc['baseline_with_cache']['latency_p50_ms'] ?? 0) }}</td>
-                                        <td class="num">{{ isset($cc['delta_percentual']['p50_percent']) ? $fmt($cc['delta_percentual']['p50_percent'], 1) : '—' }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>P95</td>
-                                        <td class="num">{{ $fmt($cc['baseline_no_cache']['latency_p95_ms'] ?? 0) }}</td>
-                                        <td class="num">{{ $fmt($cc['baseline_with_cache']['latency_p95_ms'] ?? 0) }}</td>
-                                        <td class="num">{{ isset($cc['delta_percentual']['p95_percent']) ? $fmt($cc['delta_percentual']['p95_percent'], 1) : '—' }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>P99</td>
-                                        <td class="num">{{ $fmt($cc['baseline_no_cache']['latency_p99_ms'] ?? 0) }}</td>
-                                        <td class="num">{{ $fmt($cc['baseline_with_cache']['latency_p99_ms'] ?? 0) }}</td>
-                                        <td class="num">{{ isset($cc['delta_percentual']['p99_percent']) ? $fmt($cc['delta_percentual']['p99_percent'], 1) : '—' }}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <p class="benchmark-note">Script <code>run_cache_off.sh</code> / <code>run_cache_on.sh</code> (apenas <code>searchDocuments</code>, sem etapa LLM).</p>
-                    </div>
-                @endif
-
-                <p class="benchmark-meta">
-                    Pipeline: gerado em
-                    @if(!empty($baseline['generated_at_off']))<span>sem cache {{ $baseline['generated_at_off'] }}</span>@endif
-                    @if(!empty($baseline['generated_at_on'])) · com cache {{ $baseline['generated_at_on'] }}@endif
-                </p>
-            @else
-                <div class="benchmark-empty">
-                    Nenhum ficheiro <code>results/baseline/pipeline_metrics_cache_*.json</code> encontrado.
-                    Execute <code>php artisan rag:benchmark-pipeline --both</code> (ou <code>bash scripts/benchmark/run_pipeline_metrics.sh</code>) para preencher estas tabelas.
-                </div>
-            @endif
-        </div>
-
         <!-- Main Card -->
         <div class="card">
             <!-- Alert for missing API key -->
@@ -751,8 +522,9 @@
                     <table class="data-table live-timing-table" id="metricsTable">
                         <thead>
                             <tr>
-                                <th>Métrica</th>
-                                <th class="num">Valor</th>
+                                <th>Etapa</th>
+                                <th class="num">Tempo (ms)</th>
+                                <th class="num">Custo médio (USD)</th>
                             </tr>
                         </thead>
                         <tbody id="metricsTableBody"></tbody>
@@ -883,15 +655,25 @@
 
             const metricsBody = document.getElementById('metricsTableBody');
             const br = (n) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+            const usd = (n) => Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+            const costs = data.cost || {};
             const rows = [
-                ['Total', `${br(data.timing.total)} ms`],
-                ['Embedding', `${br(data.timing.embedding)} ms`],
-                ['Busca vetorial', `${br(data.timing.search)} ms`],
-                ['Geração LLM', `${br(data.timing.generation)} ms`],
-                ['Cache habilitado (servidor)', data.cache_enabled ? 'Sim' : 'Não'],
-                ['Cache hits (estimado)', String(data.cache_hits ?? 0)],
+                ['Embedding', `${br(data.timing.embedding)} ms`, `$ ${usd(costs.embedding)}`],
+                ['Busca vetorial', `${br(data.timing.search)} ms`, `$ ${usd(costs.search)}`],
+                ['Geração LLM', `${br(data.timing.generation)} ms`, `$ ${usd(costs.generation)}`],
+                ['Total', `${br(data.timing.total)} ms`, `$ ${usd(costs.total)}`],
+                ['Cache habilitado (servidor)', data.cache_enabled ? 'Sim' : 'Não', '—'],
+                ['Cache hits (estimado)', String(data.cache_hits ?? 0), '—'],
             ];
-            metricsBody.innerHTML = rows.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="num">${escapeHtml(String(v))}</td></tr>`).join('');
+            metricsBody.innerHTML = rows
+                .map(([stage, time, cost]) => `
+                    <tr>
+                        <td>${escapeHtml(stage)}</td>
+                        <td class="num">${escapeHtml(String(time))}</td>
+                        <td class="num">${escapeHtml(String(cost))}</td>
+                    </tr>
+                `)
+                .join('');
 
             // Chunks
             const container = document.getElementById('chunksContainer');

@@ -113,6 +113,8 @@ class RagController extends Controller
             $answer = $this->chatGPTService->generateAnswer($query, $context);
             $timings['generation'] = (microtime(true) - $genStart) * 1000;
 
+            $costs = $this->calculateCosts($query, $prompt, $answer);
+
             // Check if answer was cached
             if ($this->cacheService->isEnabled()) {
                 $cachedAnswer = $this->cacheService->getAnswer($prompt);
@@ -133,6 +135,7 @@ class RagController extends Controller
                 'cache_hits' => $cacheHits,
                 'cache_enabled' => $this->cacheService->isEnabled(),
                 'timing' => $timings,
+                'cost' => $costs,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -140,5 +143,32 @@ class RagController extends Controller
                 'message' => $e->getMessage(),
             ], 422);
         }
+    }
+
+    private function calculateCosts(string $query, string $prompt, string $answer): array
+    {
+        $pricing = config('rag.pricing');
+
+        $embeddingTokens = $this->estimateTokens($query);
+        $generationInputTokens = $this->estimateTokens($prompt);
+        $generationOutputTokens = $this->estimateTokens($answer);
+
+        $embeddingCost = ($embeddingTokens / 1000) * (float) ($pricing['embedding_usd_per_1k_tokens'] ?? 0.0);
+        $searchCost = 0.0;
+        $generationCost =
+            (($generationInputTokens / 1_000_000) * (float) ($pricing['gpt4o_input_usd_per_1m'] ?? 0.0)) +
+            (($generationOutputTokens / 1_000_000) * (float) ($pricing['gpt4o_output_usd_per_1m'] ?? 0.0));
+
+        return [
+            'embedding' => $embeddingCost,
+            'search' => $searchCost,
+            'generation' => $generationCost,
+            'total' => $embeddingCost + $searchCost + $generationCost,
+        ];
+    }
+
+    private function estimateTokens(string $text): int
+    {
+        return max(1, (int) ceil(strlen($text) / 4));
     }
 }
