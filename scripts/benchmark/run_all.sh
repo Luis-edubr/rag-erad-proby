@@ -13,20 +13,24 @@ echo "RAG Benchmark Suite"
 echo "=========================================="
 echo ""
 
-echo "[1/4] Running indexing..."
+echo "[1/5] Running indexing..."
 bash "$SCRIPT_DIR/run_indexing.sh"
 
 echo ""
-echo "[2/4] Running benchmark queries (no cache)..."
+echo "[2/5] Running benchmark queries (no cache)..."
 bash "$SCRIPT_DIR/run_cache_off.sh"
 
 echo ""
-echo "[3/4] Running benchmark queries (with cache)..."
+echo "[3/5] Running benchmark queries (with cache)..."
 bash "$SCRIPT_DIR/run_cache_on.sh"
 
 echo ""
-echo "[4/4] Evaluating and exporting results..."
+echo "[4/5] Evaluating and exporting results..."
 bash "$SCRIPT_DIR/export_results.sh"
+
+echo ""
+echo "[5/5] Pipeline por etapa (latência + custo) + tabela Markdown..."
+bash "$SCRIPT_DIR/run_pipeline_metrics.sh"
 
 echo ""
 echo "=========================================="

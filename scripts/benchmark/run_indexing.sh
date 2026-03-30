@@ -10,11 +10,7 @@ php artisan qdrant:ensure-collection
 
 echo "Indexing documents from datasets..."
 php artisan tinker <<'EOF'
-use App\Models\Document;
-use App\Services\DocumentVectorizationService;
-use Symfony\Component\HttpFoundation\File\File;
-
-$vectorizationService = app(DocumentVectorizationService::class);
+$vectorizationService = app(\App\Services\DocumentVectorizationService::class);
 $documentsPath = base_path('datasets/rag-benchmark/documents');
 
 if (is_dir($documentsPath)) {

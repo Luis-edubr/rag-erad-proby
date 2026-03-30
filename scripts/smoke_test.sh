@@ -3,14 +3,12 @@
 set -e
 
 # Smoke test script for RAG application endpoints
-# Tests end-to-end RAG pipeline: upload, search, and answer
+# Tests end-to-end RAG pipeline: validation, search, and answer (indexação via artisan)
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 BASE_URL="${1:-http://localhost:8000}"
-TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
 
 echo "==================================================================="
 echo "  RAG Smoke Test"
@@ -63,29 +61,21 @@ else
     exit 1
 fi
 
-# Test 2: Upload a test document
+# Test 2: Search validation (não há rota de upload na API; indexação é via artisan)
+# Requisições JSON à API precisam de Accept: application/json — senão falhas de
+# validação viram redirecionamento 302 em vez de 422.
 echo ""
-echo "[2/4] Testing document upload..."
-TEST_DOC="$TEMP_DIR/test_smoke.txt"
-cat > "$TEST_DOC" << 'EOF'
-Machine learning is a subset of artificial intelligence that enables systems 
-to learn and improve from experience without being explicitly programmed. 
-It focuses on developing computer programs that can access data and use it 
-to learn for themselves. Supervised learning and unsupervised learning are 
-two main categories of machine learning algorithms. Deep learning is a 
-modern approach that uses neural networks with multiple layers.
-EOF
+echo "[2/4] Testing search validation (missing query)..."
+VALIDATION_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/rag/search" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -d '{}' 2>/dev/null)
 
-UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -F "file=@$TEST_DOC" \
-    "$BASE_URL/api/rag/search" 2>/dev/null)
+VALIDATION_STATUS=$(echo "$VALIDATION_RESPONSE" | tail -n1)
+VALIDATION_BODY=$(echo "$VALIDATION_RESPONSE" | sed '$d')
 
-UPLOAD_STATUS=$(echo "$UPLOAD_RESPONSE" | tail -n1)
-UPLOAD_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
-
-if assert_status 200 "$UPLOAD_STATUS" "Document upload"; then
-    # Can't really test upload on search endpoint without dedicated endpoint,
-    # so we'll test with existing dataset
-    echo "  Proceeding with dataset documents"
+if assert_status 422 "$VALIDATION_STATUS" "Search validation rejects empty body"; then
+    echo "  API returns 422 for invalid input (as expected)"
 fi
 
 # Test 3: Semantic search
@@ -156,6 +146,7 @@ echo "==================================================================="
 echo ""
 echo "Results:"
 echo "  • API connectivity: ✓"
+echo "  • Search validation: ✓"
 echo "  • Semantic search: ✓"
 echo "  • RAG answer generation: ✓"
 echo ""

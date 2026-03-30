@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\ChatGPTServiceV2;
+use App\Services\BaselineMetricsReader;
 use App\Services\CacheService;
+use App\Services\ChatGPTServiceV2;
 use App\Services\DocumentVectorizationService;
-use App\Http\Requests\DocumentVectorizationRequest;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 
 class RagController extends Controller
 {
@@ -15,6 +14,7 @@ class RagController extends Controller
         private DocumentVectorizationService $vectorizationService,
         private ChatGPTServiceV2 $chatGPTService,
         private CacheService $cacheService,
+        private BaselineMetricsReader $baselineMetricsReader,
     ) {}
 
     /**
@@ -22,7 +22,11 @@ class RagController extends Controller
      */
     public function index()
     {
-        return view('rag.index');
+        return view('rag.index', [
+            'baseline' => $this->baselineMetricsReader->getPayload(),
+            'referenceBaseline' => config('rag.reference_baseline'),
+            'pricingRef' => config('rag.pricing'),
+        ]);
     }
 
     /**
@@ -94,14 +98,14 @@ class RagController extends Controller
             $timings['search'] = (microtime(true) - $searchStart) * 1000;
 
             // Check if search results were cached
-            if ($this->cacheService->isEnabled() && !empty($chunks)) {
+            if ($this->cacheService->isEnabled() && ! empty($chunks)) {
                 $cacheHits++;
             }
 
             // Track generation time
             $genStart = microtime(true);
             $context = implode("\n---\n", array_map(
-                fn($chunk) => "Document: {$chunk['document_name']}\nChunk {$chunk['chunk_index']}:\n{$chunk['text']}",
+                fn ($chunk) => "Document: {$chunk['document_name']}\nChunk {$chunk['chunk_index']}:\n{$chunk['text']}",
                 $chunks
             ));
 

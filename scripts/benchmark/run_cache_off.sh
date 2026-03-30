@@ -11,14 +11,10 @@ mkdir -p "$RESULTS_DIR"
 echo "Running queries without cache..."
 
 php artisan tinker <<'EOF'
-use App\Models\BenchmarkRun;
-use App\Services\DocumentVectorizationService;
-
-$vectorizationService = app(DocumentVectorizationService::class);
+config(['app.rag_cache_enabled' => false]);
+$vectorizationService = app(\App\Services\DocumentVectorizationService::class);
 $queriesPath = base_path('datasets/rag-benchmark/queries.jsonl');
 $latencies = [];
-
-putenv('RAG_CACHE_ENABLED=false');
 
 if (is_file($queriesPath)) {
     $handle = fopen($queriesPath, 'r');
@@ -56,7 +52,7 @@ if (!empty($latencies)) {
     $p95 = $latencies[floor($count * 0.95)];
     $p99 = $latencies[floor($count * 0.99)];
     
-    BenchmarkRun::create([
+    \App\Models\BenchmarkRun::create([
         'scenario' => 'baseline_no_cache',
         'top_k' => 10,
         'min_score' => 0.75,

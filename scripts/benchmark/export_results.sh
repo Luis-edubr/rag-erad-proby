@@ -11,10 +11,7 @@ mkdir -p "$RESULTS_DIR"
 echo "Exporting benchmark results..."
 
 php artisan tinker <<'EOF'
-use App\Models\BenchmarkRun;
-use Illuminate\Support\Facades\File;
-
-$benchmarks = BenchmarkRun::orderBy('created_at')->get();
+$benchmarks = \App\Models\BenchmarkRun::orderBy('created_at')->get();
 
 $csv = "scenario,top_k,min_score,queries_total,latency_p50_ms,latency_p95_ms,latency_p99_ms,recall_at_k,ndcg_at_10,mrr,cost_usd\n";
 
@@ -34,7 +31,7 @@ foreach ($benchmarks as $run) {
     ]) . "\n";
 }
 
-File::put(base_path('results/baseline/metrics.csv'), $csv);
+\Illuminate\Support\Facades\File::put(base_path('results/baseline/metrics.csv'), $csv);
 
 $json = $benchmarks->map(function ($run) {
     return [
@@ -57,7 +54,7 @@ $json = $benchmarks->map(function ($run) {
     ];
 })->toArray();
 
-File::put(base_path('results/baseline/latency.json'), json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+\Illuminate\Support\Facades\File::put(base_path('results/baseline/latency.json'), json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
 if ($benchmarks->count() >= 2) {
     $noCacheRun = $benchmarks->where('scenario', 'baseline_no_cache')->first();
@@ -86,14 +83,14 @@ if ($benchmarks->count() >= 2) {
             ],
         ];
         
-        File::put(base_path('results/baseline/cache_comparison.json'), json_encode($comparison, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        \Illuminate\Support\Facades\File::put(base_path('results/baseline/cache_comparison.json'), json_encode($comparison, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         
         $comparisonCsv = "metric,no_cache,with_cache,delta_percent\n";
         $comparisonCsv .= "latency_p50_ms," . $noCacheRun->latency_p50_ms . "," . $withCacheRun->latency_p50_ms . "," . $deltaP50 . "\n";
         $comparisonCsv .= "latency_p95_ms," . $noCacheRun->latency_p95_ms . "," . $withCacheRun->latency_p95_ms . "," . $deltaP95 . "\n";
         $comparisonCsv .= "latency_p99_ms," . $noCacheRun->latency_p99_ms . "," . $withCacheRun->latency_p99_ms . "," . $deltaP99 . "\n";
         
-        File::put(base_path('results/baseline/cache_comparison.csv'), $comparisonCsv);
+        \Illuminate\Support\Facades\File::put(base_path('results/baseline/cache_comparison.csv'), $comparisonCsv);
     }
 }
 

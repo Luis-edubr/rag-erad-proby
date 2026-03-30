@@ -1,0 +1,7 @@
+scenario,top_k,min_score,queries_total,latency_p50_ms,latency_p95_ms,latency_p99_ms,recall_at_k,ndcg_at_10,mrr,cost_usd
+baseline_no_cache,10,0.75,0,0,0,0,,,,
+baseline_with_cache,10,0.75,0,0,0,0,,,,
+baseline_no_cache,10,0.75,0,0,0,0,,,,
+baseline_with_cache,10,0.75,0,0,0,0,,,,
+baseline_no_cache,10,0.75,0,0,0,0,,,,
+baseline_with_cache,10,0.75,0,0,0,0,,,,

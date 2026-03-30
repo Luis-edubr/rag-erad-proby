@@ -13,8 +13,7 @@ class DocumentVectorizationService
         private ChatGPTServiceV2 $chatGPT,
         private QdrantService $qdrant,
         private CacheService $cacheService,
-    ) {
-    }
+    ) {}
 
     public function vectorizeAndIndex(UploadedFile $file): int
     {
@@ -57,21 +56,48 @@ class DocumentVectorizationService
 
     public function searchDocuments(string $query, int $topK = 10, float $minScore = 0.0): array
     {
+        return $this->searchDocumentsWithMetrics($query, $topK, $minScore)['results'];
+    }
+
+    /**
+     * @return array{
+     *     results: array<int, array<string, mixed>>,
+     *     metrics: array{
+     *         embedding_ms: float,
+     *         vector_search_ms: float,
+     *         search_results_cache_hit: bool
+     *     }
+     * }
+     */
+    public function searchDocumentsWithMetrics(string $query, int $topK = 10, float $minScore = 0.0): array
+    {
         Log::info('Starting document search', ['query' => $query, 'top_k' => $topK]);
 
         $this->ensureCollectionReady();
 
+        $tEmbed0 = microtime(true);
         $embeddings = $this->chatGPT->embedTexts([$query]);
+        $tEmbed1 = microtime(true);
         $queryVector = $embeddings[0];
         $embeddingHash = hash('sha256', json_encode($queryVector));
 
         $cached = $this->cacheService->getSearchResults($embeddingHash, $topK, $minScore);
         if ($cached !== null) {
             Log::info('Search results from cache');
-            return $cached;
+
+            return [
+                'results' => $cached,
+                'metrics' => [
+                    'embedding_ms' => ($tEmbed1 - $tEmbed0) * 1000,
+                    'vector_search_ms' => 0.0,
+                    'search_results_cache_hit' => true,
+                ],
+            ];
         }
 
+        $tVec0 = microtime(true);
         $searchResults = $this->qdrant->searchByVector($queryVector, $topK);
+        $tVec1 = microtime(true);
         Log::info('Search results retrieved', ['count' => count($searchResults)]);
 
         $results = [];
@@ -92,7 +118,14 @@ class DocumentVectorizationService
 
         $this->cacheService->putSearchResults($embeddingHash, $topK, $minScore, $results);
 
-        return $results;
+        return [
+            'results' => $results,
+            'metrics' => [
+                'embedding_ms' => ($tEmbed1 - $tEmbed0) * 1000,
+                'vector_search_ms' => ($tVec1 - $tVec0) * 1000,
+                'search_results_cache_hit' => false,
+            ],
+        ];
     }
 
     private function ensureCollectionReady(): void
@@ -110,7 +143,7 @@ class DocumentVectorizationService
 
     private function generatePointId(string $filename, int $chunkIndex): string
     {
-        $hash = hash('sha1', strtolower(trim($filename)) . '|' . $chunkIndex);
+        $hash = hash('sha1', strtolower(trim($filename)).'|'.$chunkIndex);
 
         return sprintf(
             '%s-%s-%s-%s-%s',

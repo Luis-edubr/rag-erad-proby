@@ -1,0 +1,110 @@
+[
+    {
+        "scenario": "baseline_no_cache",
+        "top_k": 10,
+        "min_score": 0.75,
+        "queries_total": 0,
+        "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0
+        },
+        "quality": {
+            "recall_at_k": null,
+            "ndcg_at_10": null,
+            "mrr": null
+        },
+        "cost_usd": null,
+        "created_at": "2026-03-30T15:09:04+00:00"
+    },
+    {
+        "scenario": "baseline_with_cache",
+        "top_k": 10,
+        "min_score": 0.75,
+        "queries_total": 0,
+        "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0
+        },
+        "quality": {
+            "recall_at_k": null,
+            "ndcg_at_10": null,
+            "mrr": null
+        },
+        "cost_usd": null,
+        "created_at": "2026-03-30T15:09:04+00:00"
+    },
+    {
+        "scenario": "baseline_no_cache",
+        "top_k": 10,
+        "min_score": 0.75,
+        "queries_total": 0,
+        "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0
+        },
+        "quality": {
+            "recall_at_k": null,
+            "ndcg_at_10": null,
+            "mrr": null
+        },
+        "cost_usd": null,
+        "created_at": "2026-03-30T18:33:57+00:00"
+    },
+    {
+        "scenario": "baseline_with_cache",
+        "top_k": 10,
+        "min_score": 0.75,
+        "queries_total": 0,
+        "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0
+        },
+        "quality": {
+            "recall_at_k": null,
+            "ndcg_at_10": null,
+            "mrr": null
+        },
+        "cost_usd": null,
+        "created_at": "2026-03-30T18:33:57+00:00"
+    },
+    {
+        "scenario": "baseline_no_cache",
+        "top_k": 10,
+        "min_score": 0.75,
+        "queries_total": 0,
+        "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0
+        },
+        "quality": {
+            "recall_at_k": null,
+            "ndcg_at_10": null,
+            "mrr": null
+        },
+        "cost_usd": null,
+        "created_at": "2026-03-30T18:37:54+00:00"
+    },
+    {
+        "scenario": "baseline_with_cache",
+        "top_k": 10,
+        "min_score": 0.75,
+        "queries_total": 0,
+        "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0
+        },
+        "quality": {
+            "recall_at_k": null,
+            "ndcg_at_10": null,
+            "mrr": null
+        },
+        "cost_usd": null,
+        "created_at": "2026-03-30T18:37:54+00:00"
+    }
+]

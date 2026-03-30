@@ -1,0 +1,33 @@
+{
+    "generated_at": "2026-03-30T19:12:03+00:00",
+    "cache_enabled": false,
+    "queries_total": 5,
+    "top_k": 10,
+    "min_score": 0.75,
+    "stages": {
+        "embedding": {
+            "p50_ms": 453.2661,
+            "p95_ms": 505.383,
+            "p99_ms": 505.383,
+            "avg_cost_usd": 8.2e-7
+        },
+        "vector_search": {
+            "p50_ms": 117.0938,
+            "p95_ms": 118.2919,
+            "p99_ms": 118.2919,
+            "avg_cost_usd": 0
+        },
+        "llm": {
+            "p50_ms": 3143.501,
+            "p95_ms": 5291.7929,
+            "p99_ms": 5291.7929,
+            "avg_cost_usd": 0.007888000000000001
+        }
+    },
+    "total": {
+        "p50_ms": 3683.7461,
+        "p95_ms": 5712.0957,
+        "p99_ms": 5712.0957,
+        "avg_cost_usd": 0.00788882
+    }
+}

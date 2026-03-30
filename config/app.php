@@ -123,4 +123,6 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'rag_cache_enabled' => filter_var(env('RAG_CACHE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
 ];
