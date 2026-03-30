@@ -6,6 +6,8 @@ use App\Services\BaselineMetricsReader;
 use App\Services\CacheService;
 use App\Services\ChatGPTServiceV2;
 use App\Services\DocumentVectorizationService;
+use App\Services\QdrantService;
+use App\Support\OpenAiCostEstimator;
 use Illuminate\Http\Request;
 
 class RagController extends Controller
@@ -14,6 +16,7 @@ class RagController extends Controller
         private DocumentVectorizationService $vectorizationService,
         private ChatGPTServiceV2 $chatGPTService,
         private CacheService $cacheService,
+        private QdrantService $qdrantService,
         private BaselineMetricsReader $baselineMetricsReader,
     ) {}
 
@@ -72,59 +75,41 @@ class RagController extends Controller
             ]);
 
             $query = $validated['query'];
-            $useCache = $validated['use_cache'] ?? false;
             $topK = $validated['top_k'] ?? 5;
             $minScore = $validated['min_score'] ?? 0.0;
 
-            $cacheHits = 0;
-            $timings = [];
+            $search = $this->vectorizationService->searchDocumentsWithMetrics($query, $topK, $minScore);
+            $chunks = $search['results'];
+            $m = $search['metrics'];
 
-            // Track embedding time
-            $embStart = microtime(true);
-            $embedding = $this->chatGPTService->embedTexts([$query])[0];
-            $timings['embedding'] = (microtime(true) - $embStart) * 1000;
+            $timings = [
+                'embedding' => $m['embedding_ms'],
+                'search' => $m['vector_search_ms'],
+            ];
 
-            // Check if embedding was cached
-            if ($this->cacheService->isEnabled()) {
-                $cachedEmbedding = $this->cacheService->getEmbedding($query);
-                if ($cachedEmbedding !== null) {
-                    $cacheHits++;
-                }
-            }
-
-            // Track vector search time
-            $searchStart = microtime(true);
-            $chunks = $this->vectorizationService->searchDocuments($query, $topK, $minScore);
-            $timings['search'] = (microtime(true) - $searchStart) * 1000;
-
-            // Check if search results were cached
-            if ($this->cacheService->isEnabled() && ! empty($chunks)) {
-                $cacheHits++;
-            }
-
-            // Track generation time
-            $genStart = microtime(true);
             $context = implode("\n---\n", array_map(
                 fn ($chunk) => "Document: {$chunk['document_name']}\nChunk {$chunk['chunk_index']}:\n{$chunk['text']}",
                 $chunks
             ));
 
-            $prompt = "Based on the following documents, answer the question: {$query}\n\nDocuments:\n{$context}";
+            $genStart = microtime(true);
             $answer = $this->chatGPTService->generateAnswer($query, $context);
             $timings['generation'] = (microtime(true) - $genStart) * 1000;
 
-            $costs = $this->calculateCosts($query, $prompt, $answer);
+            $costs = $this->calculateCosts($query, $context, $answer);
 
-            // Check if answer was cached
-            if ($this->cacheService->isEnabled()) {
-                $cachedAnswer = $this->cacheService->getAnswer($prompt);
-                if ($cachedAnswer !== null) {
-                    $cacheHits++;
-                }
-            }
-
-            // Calculate total time
-            $timings['total'] = array_sum($timings);
+            $collectionPoints = $this->qdrantService->getCollectionPointsCount();
+            $requestMetricsTable = $this->buildRequestMetricsTable(
+                $timings,
+                $query,
+                $context,
+                $topK,
+                $minScore,
+                $chunks,
+                $answer,
+                $collectionPoints,
+                $costs
+            );
 
             return response()->json([
                 'success' => true,
@@ -132,10 +117,9 @@ class RagController extends Controller
                 'answer' => $answer,
                 'chunks' => $chunks,
                 'chunks_used' => count($chunks),
-                'cache_hits' => $cacheHits,
-                'cache_enabled' => $this->cacheService->isEnabled(),
                 'timing' => $timings,
                 'cost' => $costs,
+                'request_metrics_table' => $requestMetricsTable,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -145,30 +129,148 @@ class RagController extends Controller
         }
     }
 
-    private function calculateCosts(string $query, string $prompt, string $answer): array
+    /**
+     * Mesmo texto que {@see ChatGPTServiceV2::generateAnswer} envia ao modelo (para custo coerente com o artigo).
+     */
+    private function llmPromptForCost(string $query, string $context): string
     {
+        return "Use the following context to answer the question. If the context doesn't contain relevant information, say so.\n\nContext:\n{$context}\n\nQuestion:\n{$query}";
+    }
+
+    /**
+     * Volume = métricas reais desta requisição (tokens estimados chars/4; coleção Qdrant; resultados da busca).
+     *
+     * @param  array{embedding: float, search: float, generation: float}  $timings
+     * @param  array<int, array<string, mixed>>  $chunks
+     * @param  array{embedding: float, search: float, generation: float, total: float, llm_input?: float, llm_output?: float}  $costs
+     * @return array{title: string, rows: list<array{component: string, volume: string, cost: string, time_ms: float}>}
+     */
+    private function buildRequestMetricsTable(
+        array $timings,
+        string $query,
+        string $context,
+        int $topK,
+        float $minScore,
+        array $chunks,
+        string $answer,
+        ?int $collectionPointsCount,
+        array $costs,
+    ): array {
+        $c = config('rag.article_table');
         $pricing = config('rag.pricing');
+        $queryTokens = max(1, (int) ceil(strlen($query) / 4));
+        $fullPrompt = $this->llmPromptForCost($query, $context);
+        $promptTokens = max(1, (int) ceil(strlen($fullPrompt) / 4));
+        $answerTokens = max(1, (int) ceil(strlen($answer) / 4));
+        $hits = count($chunks);
 
-        $embeddingTokens = $this->estimateTokens($query);
-        $generationInputTokens = $this->estimateTokens($prompt);
-        $generationOutputTokens = $this->estimateTokens($answer);
+        $volEmbed = sprintf(
+            "%s tokens estimados na query\n(≈ 1 token / 4 caracteres)",
+            $this->formatIntPtBr($queryTokens)
+        );
 
-        $embeddingCost = ($embeddingTokens / 1000) * (float) ($pricing['embedding_usd_per_1k_tokens'] ?? 0.0);
+        if ($collectionPointsCount !== null) {
+            $volVector = sprintf(
+                "Coleção com %s vetores indexados\ntop_k=%d • min_score=%s\n%d resultado(s) após filtro",
+                $this->formatIntPtBr($collectionPointsCount),
+                $topK,
+                $this->formatDecimalPtBr($minScore),
+                $hits
+            );
+        } else {
+            $volVector = sprintf(
+                "Busca vetorial\ntop_k=%d • min_score=%s\n%d resultado(s)\n(coleção indisponível)",
+                $topK,
+                $this->formatDecimalPtBr($minScore),
+                $hits
+            );
+        }
+
+        $volLlm = sprintf(
+            "%s tokens estimados na resposta\n%s tokens no prompt completo\n(entrada ao modelo)",
+            $this->formatIntPtBr($answerTokens),
+            $this->formatIntPtBr($promptTokens)
+        );
+
+        $costEmbed = sprintf(
+            "%s estimado nesta requisição\n(taxa ref.: %s USD / 1k tokens — embeddings)",
+            $this->formatUsdPtBr($costs['embedding']),
+            number_format((float) $pricing['embedding_usd_per_1k_tokens'], 5, ',', '.')
+        );
+
+        $costVector = sprintf(
+            "%s na API OpenAI\n(buscas no Qdrant: sem cobrança de API)",
+            $this->formatUsdPtBr($costs['search'])
+        );
+
+        $inLlm = (float) ($costs['llm_input'] ?? 0.0);
+        $outLlm = (float) ($costs['llm_output'] ?? 0.0);
+        $costLlm = sprintf(
+            "%s total estimado\nentrada: %s • saída: %s\n(ref.: %s USD/1M in + %s USD/1M out — gpt-4o)",
+            $this->formatUsdPtBr($costs['generation']),
+            $this->formatUsdPtBr($inLlm),
+            $this->formatUsdPtBr($outLlm),
+            number_format((float) $pricing['gpt4o_input_usd_per_1m'], 2, ',', '.'),
+            number_format((float) $pricing['gpt4o_output_usd_per_1m'], 2, ',', '.')
+        );
+
+        return [
+            'title' => $c['title'],
+            'rows' => [
+                [
+                    'component' => $c['labels']['embedding'],
+                    'volume' => $volEmbed,
+                    'cost' => $costEmbed,
+                    'time_ms' => $timings['embedding'],
+                ],
+                [
+                    'component' => $c['labels']['vector'],
+                    'volume' => $volVector,
+                    'cost' => $costVector,
+                    'time_ms' => $timings['search'],
+                ],
+                [
+                    'component' => $c['labels']['llm'],
+                    'volume' => $volLlm,
+                    'cost' => $costLlm,
+                    'time_ms' => $timings['generation'],
+                ],
+            ],
+        ];
+    }
+
+    private function formatUsdPtBr(float $n): string
+    {
+        return '$ '.number_format($n, 6, ',', '.');
+    }
+
+    private function formatIntPtBr(int $n): string
+    {
+        return number_format($n, 0, ',', '.');
+    }
+
+    private function formatDecimalPtBr(float $n): string
+    {
+        return number_format($n, 2, ',', '.');
+    }
+
+    /**
+     * @return array{embedding: float, search: float, generation: float, total: float, llm_input: float, llm_output: float}
+     */
+    private function calculateCosts(string $query, string $context, string $answer): array
+    {
+        $fullPrompt = $this->llmPromptForCost($query, $context);
+        $embeddingCost = OpenAiCostEstimator::estimateEmbeddingUsdFromChars(strlen($query));
+        $llm = OpenAiCostEstimator::estimateGpt4oUsdFromChars(strlen($fullPrompt), strlen($answer));
         $searchCost = 0.0;
-        $generationCost =
-            (($generationInputTokens / 1_000_000) * (float) ($pricing['gpt4o_input_usd_per_1m'] ?? 0.0)) +
-            (($generationOutputTokens / 1_000_000) * (float) ($pricing['gpt4o_output_usd_per_1m'] ?? 0.0));
 
         return [
             'embedding' => $embeddingCost,
             'search' => $searchCost,
-            'generation' => $generationCost,
-            'total' => $embeddingCost + $searchCost + $generationCost,
+            'generation' => $llm['total_usd'],
+            'llm_input' => $llm['input_usd'],
+            'llm_output' => $llm['output_usd'],
+            'total' => $embeddingCost + $searchCost + $llm['total_usd'],
         ];
-    }
-
-    private function estimateTokens(string $text): int
-    {
-        return max(1, (int) ceil(strlen($text) / 4));
     }
 }

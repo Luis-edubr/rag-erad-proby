@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    :root {
+        --proby-primary: #00eba8;
+        --proby-secondary: #ceff06;
+        --proby-success: #16a34a;
+        --proby-danger: #dc2626;
+        --proby-gray-50: #f9fafb;
+        --proby-gray-100: #f3f4f6;
+        --proby-gray-200: #e5e7eb;
+        --proby-gray-300: #d1d5db;
+        --proby-gray-400: #9ca3af;
+        --proby-gray-500: #6b7280;
+        --proby-gray-600: #4b5563;
+        --proby-gray-700: #374151;
+        --proby-gray-800: #1f2937;
+        --proby-gray-900: #111827;
+        --proby-gray-light: #acbbc0;
+        --proby-gray-dark: #32444f;
+        --proby-white: #ffffff;
+        --proby-white-mid: #f3f3f3;
+        --proby-primary-rgb: 0, 235, 168;
+        --proby-secondary-rgb: 206, 255, 6;
+    }
+}

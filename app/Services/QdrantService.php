@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Log;
 class QdrantService
 {
     private Client $client;
+
     private string $baseUrl;
+
     private string $apiKey;
 
     public function __construct()
@@ -37,12 +39,32 @@ class QdrantService
     {
         try {
             $response = $this->client->get($this->getCollectionsEndpoint());
+
             return $response->getStatusCode() === 200;
         } catch (GuzzleException $e) {
             Log::warning('Collection check failed', [
                 'error' => $e->getMessage(),
             ]);
+
             return false;
+        }
+    }
+
+    /**
+     * Número de pontos/vetores na coleção (para métricas de volume na UI).
+     */
+    public function getCollectionPointsCount(): ?int
+    {
+        try {
+            $response = $this->client->get($this->getCollectionsEndpoint());
+            $data = json_decode($response->getBody()->getContents(), true);
+            $n = $data['result']['points_count'] ?? null;
+
+            return $n !== null ? (int) $n : null;
+        } catch (GuzzleException $e) {
+            Log::debug('Qdrant collection points_count unavailable', ['error' => $e->getMessage()]);
+
+            return null;
         }
     }
 
@@ -109,9 +131,11 @@ class QdrantService
             );
 
             $data = json_decode($response->getBody()->getContents(), true);
+
             return $data['result'] ?? [];
         } catch (GuzzleException $e) {
             Log::error('Search failed', ['error' => $e->getMessage()]);
+
             return [];
         }
     }
@@ -134,9 +158,11 @@ class QdrantService
             );
 
             $data = json_decode($response->getBody()->getContents(), true);
+
             return $data['result'] ?? [];
         } catch (GuzzleException $e) {
             Log::error('Scroll failed', ['error' => $e->getMessage()]);
+
             return [];
         }
     }
@@ -182,31 +208,31 @@ class QdrantService
 
     private function getCollectionsEndpoint(): string
     {
-        return '/collections/' . config('qdrant.collection_name');
+        return '/collections/'.config('qdrant.collection_name');
     }
 
     private function getPointsEndpoint(): string
     {
-        return '/collections/' . config('qdrant.collection_name') . '/points';
+        return '/collections/'.config('qdrant.collection_name').'/points';
     }
 
     private function getSearchEndpoint(): string
     {
-        return '/collections/' . config('qdrant.collection_name') . '/points/search';
+        return '/collections/'.config('qdrant.collection_name').'/points/search';
     }
 
     private function getScrollEndpoint(): string
     {
-        return '/collections/' . config('qdrant.collection_name') . '/points/scroll';
+        return '/collections/'.config('qdrant.collection_name').'/points/scroll';
     }
 
     private function getDeletePointsEndpoint(): string
     {
-        return '/collections/' . config('qdrant.collection_name') . '/points/delete';
+        return '/collections/'.config('qdrant.collection_name').'/points/delete';
     }
 
     private function getDeleteByFilterEndpoint(): string
     {
-        return '/collections/' . config('qdrant.collection_name') . '/points/delete';
+        return '/collections/'.config('qdrant.collection_name').'/points/delete';
     }
 }

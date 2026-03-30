@@ -23,4 +23,25 @@ return [
         'note' => 'Ordem de grandeza para cenários com contexto extenso no prompt; substitua por medições suas se tiver.',
     ],
 
+    /*
+    | Textos da Tabela 1 do artigo (componente, volume, custo unitário). O tempo vem da medição por requisição.
+    */
+    'article_table' => [
+        'title' => env('RAG_ARTICLE_TABLE_TITLE', 'Tabela 1. Métricas de performance e custo por componente da arquitetura RAG'),
+        'labels' => [
+            'embedding' => 'Embedding latency',
+            'vector' => 'Vector search latency',
+            'llm' => 'LLM generation latency',
+        ],
+        'cost_embedding' => env('RAG_ARTICLE_COST_EMBEDDING', 'US$ 0,10 / 1M tokens'),
+        'cost_vector' => env('RAG_ARTICLE_COST_VECTOR', 'US$ 0,10 / 1M vetores'),
+        'cost_llm' => env('RAG_ARTICLE_COST_LLM', 'US$ 10,00 / 1M tokens'),
+        'collection_vector_count' => (int) env('RAG_ARTICLE_COLLECTION_VECTORS', 5_000_000),
+        'vector_volume_template' => 'Busca em coleção de %s de vetores',
+        'embedding_volume_template' => '%d tokens por query',
+        'llm_volume_template' => '%d tokens gerados por resposta',
+        'default_query_tokens' => (int) env('RAG_ARTICLE_DEFAULT_QUERY_TOKENS', 20),
+        'default_llm_output_tokens' => (int) env('RAG_ARTICLE_DEFAULT_LLM_TOKENS', 500),
+    ],
+
 ];

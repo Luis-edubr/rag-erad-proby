@@ -13,8 +13,8 @@ Preços referência: embedding 0.00010 USD/1k tokens; gpt-4o 2.50/1M in + 10.00/
 
 | Cenário | Embedding (ms) | Busca vetorial (ms) | LLM (ms) | Total (ms) | $ embedding | $ busca* | $ LLM | $ total |
 |---------|----------------|---------------------|----------|------------|-------------|---------|-------|---------|
-| Cache **OFF** (medido) | 453.27 | 117.09 | 3143.50 | 3683.75 | 0.000001 | 0.000000 | 0.007888 | 0.007889 |
-| Cache **ON** (medido) | 0.73 | 0.00 | 0.35 | 1.07 | 0.000001 | 0.000000 | 0.007784 | 0.007785 |
+| Cache **OFF** (medido) | 308.52 | 121.20 | 2966.13 | 3385.51 | 0.000001 | 0.000000 | 0.007672 | 0.007673 |
+| Cache **ON** (medido) | 1.30 | 0.00 | 0.39 | 1.56 | 0.000001 | 0.000000 | 0.007784 | 0.007785 |
 | Baseline típico: só LLM (1× gpt-4o, prompt longo sem recuperação) | — | — | — | **4000** | — | — | — | **0.0200** |
 
 \* Busca em Qdrant auto-hospedado: custo API OpenAI **0**; infraestrutura própria não entra nesta coluna.
